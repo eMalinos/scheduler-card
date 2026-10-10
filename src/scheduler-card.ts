@@ -22,6 +22,8 @@ import './scheduler-card-editor';
 import "./dialogs/dialog-scheduler-editor";
 import "./components/scheduler-item-row";
 import { entityIncludedByConfig } from "./data/actions/entity_included_by_config";
+import { computeActionDomains } from "./data/actions/compute_action_domains";
+import { computeActionsForDomain } from "./data/actions/compute_actions_for_domain";
 
 @customElement('scheduler-card')
 export class SchedulerCard extends LitElement {
@@ -351,6 +353,13 @@ export class SchedulerCard extends LitElement {
     let clonedConfig: Schedule = this._config.default_editor == EditorMode.Scheme
       ? JSON.parse(JSON.stringify(defaultTimeSchemeConfig))
       : JSON.parse(JSON.stringify(defaultSingleTimerConfig));
+    // fork: pre-select the action when the card offers exactly one (e.g. a single custom action);
+    // slot 1 is the slot the single-timer editor opens
+    if (this._config.default_editor != EditorMode.Scheme) {
+      const domains = computeActionDomains(this.hass!, this._config);
+      const actions = domains.length == 1 ? computeActionsForDomain(this.hass!, domains[0].key, this._config) : [];
+      if (actions.length == 1) clonedConfig.entries[0].slots[1].actions = [actions[0].action];
+    }
     const params: SchedulerDialogParams = {
       schedule: { ...clonedConfig, tags: defaultTags.length == 1 ? defaultTags : [] },
       cardConfig: this._config
