@@ -24,6 +24,8 @@ import "./components/scheduler-item-row";
 import { entityIncludedByConfig } from "./data/actions/entity_included_by_config";
 import { computeActionDomains } from "./data/actions/compute_action_domains";
 import { computeActionsForDomain } from "./data/actions/compute_actions_for_domain";
+import { groupSchedules, toGroupKey } from "./data/schedule/group_schedules";
+import { mdiPlus } from "@mdi/js";
 
 @customElement('scheduler-card')
 export class SchedulerCard extends LitElement {
@@ -35,6 +37,8 @@ export class SchedulerCard extends LitElement {
   @state() public schedules?: ScheduleStorageEntry[];
 
   @state() showDiscovered: boolean = false;
+
+  @state() newGroupName: string = '';
 
   translationsLoaded = false;
   connectionError = false;
@@ -183,23 +187,15 @@ export class SchedulerCard extends LitElement {
           </hui-warning>
         </div>
       `
-        : !Object.keys(items).length
+        : !Object.keys(items).length && !this._config.group_by_tag_prefix
           ? html`
         <div>
           ${localize('ui.panel.overview.no_entries', this.hass)}
         </div>
         `
-          : includedItems.map(scheduleItem => html`
-            <scheduler-item-row
-              .hass=${this.hass}
-              .config=${this._config}
-              .schedule_id=${scheduleItem.schedule_id}
-              .schedule=${scheduleItem}
-              @editClick=${(ev: Event) => { this._handleEditClick(ev, scheduleItem) }}
-            >
-            </scheduler-item-row>
-          `
-          )
+          : this._config.group_by_tag_prefix
+            ? this._renderGroups(includedItems)
+            : includedItems.map(scheduleItem => this._renderRow(scheduleItem))
       }
 
       ${Object.keys(items).length > includedItems.length && this._config.discover_existing !== false
@@ -253,13 +249,66 @@ export class SchedulerCard extends LitElement {
             >${hassLocalize('ui.common.refresh', this.hass)}
           </ha-button>
             `
-          : html`
+          : this._config.group_by_tag_prefix
+            ? this._renderNewGroup()
+            : html`
           <ha-button appearance="plain" @click=${this._addClick}
             >${hassLocalize('ui.common.add', this.hass)}
           </ha-button>
           `}
         </div>` : ''}
       </ha-card>
+    `;
+  }
+
+  private _renderRow(scheduleItem: ScheduleStorageEntry) {
+    return html`
+      <scheduler-item-row
+        .hass=${this.hass}
+        .config=${this._config}
+        .schedule_id=${scheduleItem.schedule_id}
+        .schedule=${scheduleItem}
+        @editClick=${(ev: Event) => { this._handleEditClick(ev, scheduleItem) }}
+      >
+      </scheduler-item-row>
+    `;
+  }
+
+  // fork: one section per group tag, each with an add button that tags the new schedule with the group
+  private _renderGroups(items: ScheduleStorageEntry[]) {
+    const names = this._config.group_names || {};
+    return groupSchedules(items, this._config.group_by_tag_prefix!, names).map(group => html`
+      <div class="group-header">
+        <span>${names[group.key] ?? (group.key || localize('ui.panel.overview.ungrouped', this.hass))}</span>
+        ${this._config.show_add_button !== false ? html`
+        <ha-icon-button
+          .path=${mdiPlus}
+          .label=${hassLocalize('ui.common.add', this.hass)}
+          @click=${(ev: Event) => this._addClick(ev, group.key)}
+        ></ha-icon-button>` : ''}
+      </div>
+      ${group.items.map(scheduleItem => this._renderRow(scheduleItem))}
+    `);
+  }
+
+  // fork: a new group exists once its first schedule is saved, so "new group" just opens the editor with its tag
+  private _renderNewGroup() {
+    const confirm = (ev: Event) => {
+      const key = toGroupKey(this.newGroupName);
+      if (!key) return;
+      this.newGroupName = '';
+      this._addClick(ev, key);
+    };
+    return html`
+      <ha-input
+        .value=${this.newGroupName}
+        .label=${localize('ui.panel.overview.new_group', this.hass)}
+        @input=${(ev: Event) => { this.newGroupName = (ev.currentTarget as any).value }}
+        @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') confirm(ev) }}
+      ></ha-input>
+      <ha-button appearance="plain" ?disabled=${!toGroupKey(this.newGroupName)} @click=${confirm}
+        >${hassLocalize('ui.common.add', this.hass)}
+      </ha-button>
     `;
   }
 
@@ -348,8 +397,10 @@ export class SchedulerCard extends LitElement {
     });
   }
 
-  private _addClick(_ev: Event) {
+  private _addClick(_ev: Event, group?: string) {
     const defaultTags = [this._config.tags || []].flat().filter(e => !['none', 'disabled', 'enabled'].includes(e));
+    // fork: a schedule added in a group section also gets the group tag
+    const groupTags = group ? [this._config.group_by_tag_prefix + group] : [];
     let clonedConfig: Schedule = this._config.default_editor == EditorMode.Scheme
       ? JSON.parse(JSON.stringify(defaultTimeSchemeConfig))
       : JSON.parse(JSON.stringify(defaultSingleTimerConfig));
@@ -362,7 +413,7 @@ export class SchedulerCard extends LitElement {
     }
     const params: SchedulerDialogParams = {
       // fork: with tags_match 'all' a new schedule gets every tag, so it shows up in this card
-      schedule: { ...clonedConfig, tags: defaultTags.length == 1 || this._config.tags_match == 'all' ? defaultTags : [] },
+      schedule: { ...clonedConfig, tags: [...(defaultTags.length == 1 || this._config.tags_match == 'all' ? defaultTags : []), ...groupTags] },
       cardConfig: this._config
     };
 
@@ -433,6 +484,16 @@ export class SchedulerCard extends LitElement {
     }
     .card-actions, .card-actions > * { 
       display: flex;
+    }
+    .card-actions ha-input {
+      flex: 1;
+    }
+    .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 500;
+      border-bottom: 1px solid var(--divider-color);
     }
   `;
 }

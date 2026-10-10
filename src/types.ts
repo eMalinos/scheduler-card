@@ -19,6 +19,8 @@ export interface CardConfig {
   tags?: string[] | string;
   exclude_tags?: string[] | string;
   tags_match?: 'any' | 'all'; // fork: 'all' = a schedule must have every tag in `tags`
+  group_by_tag_prefix?: string; // fork: sections per tag with this prefix, each with its own add button
+  group_names?: Record<string, string>; // fork: section titles by group key ('' = schedules without a group tag)
   show_add_button?: boolean;
 }
 
