@@ -413,7 +413,7 @@ export class SchedulerCard extends LitElement {
     }
     const params: SchedulerDialogParams = {
       // fork: with tags_match 'all' a new schedule gets every tag, so it shows up in this card
-      schedule: { ...clonedConfig, tags: [...(defaultTags.length == 1 || this._config.tags_match == 'all' ? defaultTags : []), ...groupTags] },
+      schedule: { ...clonedConfig, tags: [...(defaultTags.length == 1 || this._config.tags_match == 'all' || group ? defaultTags : []), ...groupTags] },
       cardConfig: this._config
     };
 

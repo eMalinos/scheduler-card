@@ -14,6 +14,14 @@ export const groupSchedules = <T extends Schedule>(items: T[], prefix: string, n
   return keys.map((key) => ({ key, items: items.filter((e) => groupKey(e, prefix) == key) }));
 };
 
-// user input -> tag-safe group key: trimmed, lower case, no diacritics, spaces -> '_'
-export const toGroupKey = (name: string) =>
-  name.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '_');
+// user input -> tag-safe group key: trimmed, lower case, no diacritics, spaces -> '_';
+// 'unknown'/'unavailable' rejected (HA state words, a program named so would never be applied)
+export const toGroupKey = (name: string) => {
+  const key = name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_');
+  return ['unknown', 'unavailable'].includes(key) ? '' : key;
+};
