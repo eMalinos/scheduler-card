@@ -18,6 +18,7 @@ export interface CardConfig {
   customize?: CustomConfig;
   tags?: string[] | string;
   exclude_tags?: string[] | string;
+  tags_match?: 'any' | 'all'; // fork: 'all' = a schedule must have every tag in `tags`
   show_add_button?: boolean;
 }
 

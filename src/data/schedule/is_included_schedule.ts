@@ -21,7 +21,8 @@ export const isIncludedSchedule = (schedule: Schedule, config: CardConfig) => {
   const filterTags = [config.tags || []].flat();
   if (filterTags.length) {
     res = false;
-    if ((schedule.tags || []).some(e => filterTags.includes(e))) res = true;
+    if (config.tags_match == 'all') res = filterTags.every(e => (schedule.tags || []).includes(e)); // fork
+    else if ((schedule.tags || []).some(e => filterTags.includes(e))) res = true;
     else if (filterTags.includes('none') && !schedule.tags?.length) res = true;
     else if (filterTags.includes('enabled') && schedule.enabled) res = true;
     else if (filterTags.includes('disabled') && !schedule.enabled) res = true;
